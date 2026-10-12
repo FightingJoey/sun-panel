@@ -79,8 +79,8 @@ export function parseHostInput(raw: string): { hostname: string; port: string | 
 
 /**
  * Resolve the jump URL for an item under a group's active network state.
- * - wan: use item.url (full public URL)
- * - otherwise: take protocol/path from item.url, replace hostname with state.host and port with item.port
+ * - wan: use item.url (full public URL) as stored (http or https)
+ * - otherwise: replace hostname with state.host; default protocol is http unless host field has a scheme
  */
 export function buildJumpUrl(item: Panel.ItemInfo, group?: Panel.ItemIconGroup | null): string {
   const state = getActiveNetworkState(group)
@@ -104,31 +104,38 @@ export function buildUrlForState(item: Panel.ItemInfo, state: Panel.NetworkState
   }
 
   const itemPort = item.port && Number(item.port) > 0 ? String(item.port) : null
-  // Priority: item.port > host-field port > keep public URL port
+  // Priority: item.port > host-field port > none (do not inherit https public port blindly)
   const preferredPort = itemPort || parsed.port
+
+  // Non-wan: never inherit https from public URL. Only use https if host field explicitly has https://.
+  // Bare IP / hostname → http.
+  const protocol = parsed.protocol || 'http:'
 
   try {
     const hasPublicUrl = !!(item.url && /^https?:\/\//i.test(item.url))
-    const base = hasPublicUrl
-      ? item.url!
-      : `${parsed.protocol || 'http:'}//${parsed.hostname}`
-    const url = new URL(base)
-
-    // hostname only — never pass host:port here (silent no-op otherwise)
-    url.hostname = parsed.hostname
+    // Build from http(s)://host so we control protocol; copy path from public URL when present
+    const url = new URL(`${protocol}//${parsed.hostname}`)
 
     if (preferredPort)
       url.port = preferredPort
-    else if (!hasPublicUrl)
-      url.port = ''
-    // else: keep port from public URL when item/host did not specify one
 
-    if (parsed.protocol)
-      url.protocol = parsed.protocol
-
-    // If public URL was empty and host input carried a path, keep it
-    if (!hasPublicUrl && parsed.pathname)
+    if (hasPublicUrl) {
+      try {
+        const pub = new URL(item.url!)
+        if (pub.pathname && pub.pathname !== '/')
+          url.pathname = pub.pathname
+        if (pub.search)
+          url.search = pub.search
+        if (pub.hash)
+          url.hash = pub.hash
+      }
+      catch {
+        // ignore bad public URL path copy
+      }
+    }
+    else if (parsed.pathname) {
       url.pathname = parsed.pathname
+    }
 
     return url.toString()
   }

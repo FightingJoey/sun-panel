@@ -2,6 +2,7 @@ package panel
 
 import (
 	"math"
+	"strings"
 	"sun-panel/api/api_v1/common/apiData/commonApiStructs"
 	"sun-panel/api/api_v1/common/apiReturn"
 	"sun-panel/api/api_v1/common/base"
@@ -17,6 +18,25 @@ import (
 type ItemIconGroup struct {
 }
 
+func normalizeNetworkConfig(cfg *datatype.NetworkConfig) {
+	if cfg == nil {
+		return
+	}
+	if len(cfg.NetworkStates) == 0 {
+		*cfg = datatype.DefaultNetworkConfig()
+		return
+	}
+	for i := range cfg.NetworkStates {
+		cfg.NetworkStates[i].Host = strings.TrimSpace(cfg.NetworkStates[i].Host)
+		cfg.NetworkStates[i].Name = strings.TrimSpace(cfg.NetworkStates[i].Name)
+		cfg.NetworkStates[i].Type = strings.TrimSpace(cfg.NetworkStates[i].Type)
+		cfg.NetworkStates[i].Id = strings.TrimSpace(cfg.NetworkStates[i].Id)
+	}
+	if cfg.ActiveNetworkStateId == "" {
+		cfg.ActiveNetworkStateId = cfg.NetworkStates[0].Id
+	}
+}
+
 func (a *ItemIconGroup) Edit(c *gin.Context) {
 	userInfo, _ := base.GetCurrentUserInfo(c)
 	req := models.ItemIconGroup{}
@@ -27,29 +47,85 @@ func (a *ItemIconGroup) Edit(c *gin.Context) {
 	}
 
 	req.UserId = userInfo.ID
-
-	if len(req.NetworkConfig.NetworkStates) == 0 {
-		req.NetworkConfig = datatype.DefaultNetworkConfig()
-	}
-	if req.NetworkConfig.ActiveNetworkStateId == "" && len(req.NetworkConfig.NetworkStates) > 0 {
-		req.NetworkConfig.ActiveNetworkStateId = req.NetworkConfig.NetworkStates[0].Id
-	}
+	normalizeNetworkConfig(&req.NetworkConfig)
 
 	if req.ID != 0 {
-		// 修改
-		updateField := []string{"Icon", "Title", "Description", "UserId", "NetworkConfig"}
-		if req.Sort != 0 {
-			updateField = append(updateField, "Sort")
+		// 修改 — use map update so custom Valuer NetworkConfig always persists
+		updates := map[string]interface{}{
+			"icon":           req.Icon,
+			"title":          req.Title,
+			"description":    req.Description,
+			"user_id":        req.UserId,
+			"network_config": req.NetworkConfig,
 		}
-		global.Db.Model(&models.ItemIconGroup{}).
-			Select(updateField).
-			Where("id=? AND user_id=?", req.ID, userInfo.ID).Updates(&req)
+		if req.Sort != 0 {
+			updates["sort"] = req.Sort
+		}
+		if err := global.Db.Model(&models.ItemIconGroup{}).
+			Where("id=? AND user_id=?", req.ID, userInfo.ID).
+			Updates(updates).Error; err != nil {
+			apiReturn.ErrorDatabase(c, err.Error())
+			return
+		}
 	} else {
 		// 创建
-		global.Db.Create(&req)
+		if err := global.Db.Create(&req).Error; err != nil {
+			apiReturn.ErrorDatabase(c, err.Error())
+			return
+		}
 	}
 
 	apiReturn.SuccessData(c, req)
+}
+
+type switchNetworkStateReq struct {
+	Id                   uint   `json:"id"`
+	ActiveNetworkStateId string `json:"activeNetworkStateId"`
+}
+
+// SwitchNetworkState only flips activeNetworkStateId using DB-stored hosts.
+// Avoids the home page overwriting saved hosts with a stale in-memory config.
+func (a *ItemIconGroup) SwitchNetworkState(c *gin.Context) {
+	userInfo, _ := base.GetCurrentUserInfo(c)
+	req := switchNetworkStateReq{}
+	if err := c.ShouldBindBodyWith(&req, binding.JSON); err != nil {
+		apiReturn.ErrorParamFomat(c, err.Error())
+		return
+	}
+	if req.Id == 0 || strings.TrimSpace(req.ActiveNetworkStateId) == "" {
+		apiReturn.ErrorParamFomat(c, "id and activeNetworkStateId are required")
+		return
+	}
+
+	var group models.ItemIconGroup
+	if err := global.Db.Where("id=? AND user_id=?", req.Id, userInfo.ID).First(&group).Error; err != nil {
+		apiReturn.ErrorDatabase(c, err.Error())
+		return
+	}
+
+	normalizeNetworkConfig(&group.NetworkConfig)
+
+	found := false
+	for _, s := range group.NetworkConfig.NetworkStates {
+		if s.Id == req.ActiveNetworkStateId {
+			found = true
+			break
+		}
+	}
+	if !found {
+		apiReturn.ErrorParamFomat(c, "network state not found")
+		return
+	}
+
+	group.NetworkConfig.ActiveNetworkStateId = req.ActiveNetworkStateId
+	if err := global.Db.Model(&models.ItemIconGroup{}).
+		Where("id=? AND user_id=?", req.Id, userInfo.ID).
+		Update("network_config", group.NetworkConfig).Error; err != nil {
+		apiReturn.ErrorDatabase(c, err.Error())
+		return
+	}
+
+	apiReturn.SuccessData(c, group)
 }
 
 func (a *ItemIconGroup) GetList(c *gin.Context) {

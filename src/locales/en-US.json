@@ -105,7 +105,7 @@
       "networkStates": "Network states",
       "networkStateName": "State name",
       "networkStateHost": "IP / Host",
-      "networkStateHostPlaceholder": "LAN or mesh IP; leave empty for public",
+      "networkStateHostPlaceholder": "e.g. 192.168.1.10 (http:// optional); leave empty for public",
       "networkStateType": "Type",
       "addNetworkState": "Add network state",
       "deleteNetworkState": "Delete",

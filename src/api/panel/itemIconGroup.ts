@@ -26,3 +26,10 @@ export function saveSort<T>(sortItems: Common.SortItemRequest[]) {
     data: { sortItems },
   })
 }
+
+export function switchNetworkState<T>(id: number, activeNetworkStateId: string) {
+  return post<T>({
+    url: '/panel/itemIconGroup/switchNetworkState',
+    data: { id, activeNetworkStateId },
+  })
+}

@@ -89,3 +89,24 @@ After a move, clicks use the **destination group’s** active network state + th
 **Root cause:** `buildUrlForState` assigned the raw `state.host` to `URL.hostname`. If the host field contained a port (`192.168.1.10:8080`) or a scheme (`http://...`), the assignment was **silently ignored** by the URL API, so the original public URL was returned unchanged. Empty host also fell back to the public URL with no warning.
 
 **Fix:** Parse host input (`parseHostInput`) before applying; use hostname/port/protocol separately. Prefer `item.port`, then host-field port, then keep the public URL port. Click/context handlers now receive the group object from the rendered list instead of indexing into `items` (avoids search-filter mismatch).
+
+## Bugfix (2026-10-13): intranet host wiped / jump still public
+
+**Symptoms:**
+1. Saved a group 内网 host (bare IP), but icon jump still used the public/old URL.
+2. After opening that old URL and re-opening group edit, the just-saved host was empty.
+3. Host input must accept bare IP without `http://`.
+
+**Root cause:** The home page kept a **stale in-memory `networkConfig`** after 分组管理 saved hosts. Switching 公网/内网 on the home page called full `edit` with that stale config (empty hosts), **overwriting** the DB. Jump then saw empty host and fell back to public/`lanUrl`. Bare IP parsing already worked via `parseHostInput`; the wipe made it look broken.
+
+**Fix:**
+- New API `POST /panel/itemIconGroup/switchNetworkState` — loads the group from DB and only flips `activeNetworkStateId` (never resends hosts).
+- Home uses that API for network switching; deep-clones config on load/sync.
+- 分组管理 save trims hosts, updates local list, and dispatches `sunpanel:groups-changed`; home also reloads when the app launcher closes.
+- Group `edit` persists `network_config` via map `Updates` and checks DB errors.
+
+## Bugfix (2026-10-13): intranet opened as https
+
+**Symptom:** Switching to 内网 opened `https://192.168.x.x/...` because `buildUrlForState` reused the public URL object (often https).
+
+**Fix:** For non-wan states, protocol is `http` unless the host field itself includes a scheme (`https://...`). Path/query still copied from the public URL when present. Wan/public URL unchanged.

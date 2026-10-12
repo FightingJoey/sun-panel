@@ -12,6 +12,7 @@ func InitItemIconGroup(router *gin.RouterGroup) {
 	r := router.Group("", middleware.LoginInterceptor)
 	{
 		r.POST("/panel/itemIconGroup/edit", itemIconGroup.Edit)
+		r.POST("/panel/itemIconGroup/switchNetworkState", itemIconGroup.SwitchNetworkState)
 		r.POST("/panel/itemIconGroup/deletes", itemIconGroup.Deletes)
 		r.POST("/panel/itemIconGroup/saveSort", itemIconGroup.SaveSort)
 	}

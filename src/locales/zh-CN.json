@@ -105,7 +105,7 @@
       "networkStates": "网络状态",
       "networkStateName": "状态名称",
       "networkStateHost": "IP / 主机",
-      "networkStateHostPlaceholder": "内网或异地组网 IP，公网可留空",
+      "networkStateHostPlaceholder": "例如 192.168.1.10（可不带 http://），公网可留空",
       "networkStateType": "类型",
       "addNetworkState": "添加网络状态",
       "deleteNetworkState": "删除",

@@ -147,14 +147,36 @@ function handleSaveGroup() {
     if (!errors) {
       ensureModelNetworkConfig()
       const cfg = editModalArg.value.model.networkConfig!
+      // Trim hosts so bare IPs like "192.168.1.10" persist cleanly
+      for (const state of cfg.networkStates)
+        state.host = (state.host || '').trim()
+
       if (!cfg.activeNetworkStateId || !cfg.networkStates.find(s => s.id === cfg.activeNetworkStateId))
         cfg.activeNetworkStateId = cfg.networkStates[0]?.id || 'wan'
 
-      edit(editModalArg.value.model).then(({ code, msg }) => {
-        if (code !== 0)
+      edit(editModalArg.value.model).then(({ code, msg, data }) => {
+        if (code !== 0) {
           ms.error(msg)
+          return
+        }
 
-        refreshList()
+        ms.success(t('common.saveSuccess'))
+        // Keep manage list in sync with what we just saved
+        if (data) {
+          const saved = data as Panel.ItemIconGroup
+          const idx = groups.value.findIndex(g => g.id === saved.id)
+          if (idx >= 0)
+            groups.value[idx] = { ...groups.value[idx], ...saved }
+          else if (editModalArg.value.editStatus === 1)
+            refreshList()
+        }
+        else {
+          refreshList()
+        }
+
+        // Notify home page to reload groups so jump URLs use the new hosts
+        window.dispatchEvent(new CustomEvent('sunpanel:groups-changed'))
+
         editModalArg.value.show = false
         editModalArg.value.model = { ...defaultMNodal, networkConfig: defaultNetworkConfig() }
       })

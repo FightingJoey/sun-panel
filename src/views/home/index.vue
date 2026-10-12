@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { VueDraggable } from 'vue-draggable-plus'
 import { NBackTop, NButton, NButtonGroup, NDropdown, NModal, NSkeleton, NSpin, useDialog, useMessage } from 'naive-ui'
-import { nextTick, onMounted, ref } from 'vue'
+import { nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { AppIcon, AppStarter, EditItem } from './components'
 import { Clock, SearchBox, SystemMonitor } from '@/components/deskModule'
 import { SvgIcon } from '@/components/common'
 import { deletes, getListByGroupId, saveSort } from '@/api/panel/itemIcon'
-import { edit as editGroup, getList as getGroupList } from '@/api/panel/itemIconGroup'
+import { getList as getGroupList, switchNetworkState } from '@/api/panel/itemIconGroup'
 
 import { setTitle, updateLocalUserInfo } from '@/utils/cmn'
 import { useAuthStore, usePanelState } from '@/store'
@@ -111,7 +111,7 @@ function getList() {
         ...g,
         hoverStatus: false,
         sortStatus: globalSortMode.value,
-        networkConfig: ensureNetworkConfig(g),
+        networkConfig: JSON.parse(JSON.stringify(ensureNetworkConfig(g))),
         items: g.items || [],
       }))
       for (let i = 0; i < items.value.length; i++) {
@@ -282,6 +282,10 @@ function getDropdownMenuOptions() {
   return dropdownMenuOptions
 }
 
+function handleGroupsChanged() {
+  getList()
+}
+
 onMounted(() => {
   // 更新用户信息
   updateLocalUserInfo()
@@ -293,6 +297,18 @@ onMounted(() => {
   // 设置标题
   if (panelState.panelConfig.logoText)
     setTitle(panelState.panelConfig.logoText)
+
+  window.addEventListener('sunpanel:groups-changed', handleGroupsChanged)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('sunpanel:groups-changed', handleGroupsChanged)
+})
+
+// Reload groups when the app launcher closes (e.g. after editing group hosts)
+watch(settingModalShow, (visible, wasVisible) => {
+  if (wasVisible && !visible)
+    getList()
 })
 
 // 前端搜索过滤
@@ -360,29 +376,44 @@ function getNetworkStateOptions(group: ItemGroup) {
   }))
 }
 
+function syncGroupNetworkConfig(groupId: number, cfg: Panel.NetworkConfig) {
+  const cloned = JSON.parse(JSON.stringify(cfg)) as Panel.NetworkConfig
+  const apply = (list: ItemGroup[]) => {
+    const g = list.find(x => x.id === groupId)
+    if (g)
+      g.networkConfig = cloned
+  }
+  apply(items.value)
+  if (filterItems.value !== items.value)
+    apply(filterItems.value)
+}
+
 function handleSwitchNetworkState(group: ItemGroup, stateId: string | number) {
   const cfg = ensureNetworkConfig(group)
   const id = String(stateId)
   const state = cfg.networkStates.find(s => s.id === id)
-  if (!state)
-    return
-  cfg.activeNetworkStateId = id
-  group.networkConfig = { ...cfg }
-
-  if (!group.id)
+  if (!state || !group.id)
     return
 
-  editGroup({
-    id: group.id,
-    title: group.title,
-    icon: group.icon,
-    sort: group.sort,
-    networkConfig: group.networkConfig,
-  }).then(({ code, msg }) => {
-    if (code === 0)
+  // Optimistic UI (deep clone so we never mutate a shared stale object)
+  const next = JSON.parse(JSON.stringify(cfg)) as Panel.NetworkConfig
+  next.activeNetworkStateId = id
+  syncGroupNetworkConfig(group.id, next)
+
+  // Backend only flips activeNetworkStateId on the DB row — never resends hosts,
+  // so a stale home-page config cannot wipe a host saved in 分组管理.
+  switchNetworkState<Panel.ItemIconGroup>(group.id, id).then(({ code, msg, data }) => {
+    if (code === 0) {
+      if (data?.networkConfig)
+        syncGroupNetworkConfig(group.id, data.networkConfig)
       ms.success(t('panelHome.switchNetworkStateSuccess', { name: state.name }))
-    else
+    }
+    else {
       ms.error(`${t('common.saveFail')}:${msg}`)
+      getList()
+    }
+  }).catch(() => {
+    getList()
   })
 }
 
