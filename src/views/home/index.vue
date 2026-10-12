@@ -6,14 +6,15 @@ import { AppIcon, AppStarter, EditItem } from './components'
 import { Clock, SearchBox, SystemMonitor } from '@/components/deskModule'
 import { SvgIcon } from '@/components/common'
 import { deletes, getListByGroupId, saveSort } from '@/api/panel/itemIcon'
-import { getList as getGroupList } from '@/api/panel/itemIconGroup'
+import { edit as editGroup, getList as getGroupList } from '@/api/panel/itemIconGroup'
 
 import { setTitle, updateLocalUserInfo } from '@/utils/cmn'
 import { useAuthStore, usePanelState } from '@/store'
-import { PanelPanelConfigStyleEnum, PanelStateNetworkModeEnum } from '@/enums'
+import { PanelPanelConfigStyleEnum } from '@/enums'
 import { VisitMode } from '@/enums/auth'
 import { router } from '@/router'
 import { t } from '@/locales'
+import { buildJumpUrl, buildUrlForState, ensureNetworkConfig, getActiveNetworkState } from '@/utils/network'
 
 interface ItemGroup extends Panel.ItemIconGroup {
   sortStatus?: boolean
@@ -41,14 +42,18 @@ const dropdownMenuX = ref(0)
 const dropdownMenuY = ref(0)
 const dropdownShow = ref(false)
 const currentRightSelectItem = ref<Panel.ItemInfo | null>(null)
+const currentRightSelectGroup = ref<ItemGroup | null>(null)
 const currentAddItenIconGroupId = ref<number | undefined>()
 
 const settingModalShow = ref(false)
 
 const items = ref<ItemGroup[]>([])
 const filterItems = ref<ItemGroup[]>([])
+const globalSortMode = ref(false)
 
 function openPage(openMethod: number, url: string, title?: string) {
+  if (!url)
+    return
   switch (openMethod) {
     case 1:
       window.location.href = url
@@ -68,19 +73,26 @@ function openPage(openMethod: number, url: string, title?: string) {
   }
 }
 
+function findGroupForItem(item: Panel.ItemInfo): ItemGroup | undefined {
+  const groupId = item.itemIconGroupId
+  if (groupId)
+    return items.value.find(g => g.id === groupId)
+  return items.value.find(g => g.items?.some(i => i.id === item.id))
+}
+
+function resolveJumpUrl(item: Panel.ItemInfo, group?: ItemGroup | null): string {
+  const g = group || findGroupForItem(item)
+  return buildJumpUrl(item, g)
+}
+
 function handleItemClick(itemGroupIndex: number, item: Panel.ItemInfo) {
-  if (items.value[itemGroupIndex] && items.value[itemGroupIndex].sortStatus) {
+  if (globalSortMode.value || (items.value[itemGroupIndex] && items.value[itemGroupIndex].sortStatus)) {
     handleEditItem(item)
     return
   }
 
-  let jumpUrl = ''
-
-  if (item)
-    jumpUrl = (panelState.networkMode === PanelStateNetworkModeEnum.lan ? item.lanUrl : item.url) as string
-  if (item.lanUrl === '')
-    jumpUrl = item.url
-
+  const group = items.value[itemGroupIndex] || findGroupForItem(item)
+  const jumpUrl = resolveJumpUrl(item, group)
   openPage(item.openMethod, jumpUrl, item.title)
 }
 
@@ -91,15 +103,26 @@ function handWindowIframeIdLoad(payload: Event) {
 function getList() {
   // 获取组数据
   getGroupList<Common.ListResponse<ItemGroup[]>>().then(({ code, data, msg }) => {
-    if (code === 0)
-      items.value = data.list
-    for (let i = 0; i < data.list.length; i++) {
-      const element = data.list[i]
-      if (element.id)
-        updateItemIconGroupByNet(i, element.id)
+    if (code === 0 && data?.list) {
+      items.value = data.list.map(g => ({
+        ...g,
+        hoverStatus: false,
+        sortStatus: globalSortMode.value,
+        networkConfig: ensureNetworkConfig(g),
+        items: g.items || [],
+      }))
+      for (let i = 0; i < items.value.length; i++) {
+        const element = items.value[i]
+        if (element.id)
+          updateItemIconGroupByNet(i, element.id)
+      }
+      filterItems.value = items.value
     }
-    filterItems.value = items.value
-    // console.log(items)
+    else if (code !== 0) {
+      console.error('getGroupList failed', code, msg)
+    }
+  }).catch((err) => {
+    console.error('getGroupList error', err)
   })
 }
 
@@ -113,34 +136,40 @@ function updateItemIconGroupByNet(itemIconGroupIndex: number, itemIconGroupId: n
 
 function handleRightMenuSelect(key: string | number) {
   dropdownShow.value = false
-  // console.log(currentRightSelectItem, key)
-  let jumpUrl = panelState.networkMode === PanelStateNetworkModeEnum.lan ? currentRightSelectItem.value?.lanUrl : currentRightSelectItem.value?.url
-  if (currentRightSelectItem.value?.lanUrl === '')
-    jumpUrl = currentRightSelectItem.value.url
+  const item = currentRightSelectItem.value
+  const group = currentRightSelectGroup.value
+  if (!item)
+    return
+
+  if (typeof key === 'string' && key.startsWith('openState:')) {
+    const stateId = key.slice('openState:'.length)
+    const cfg = ensureNetworkConfig(group)
+    const state = cfg.networkStates.find(s => s.id === stateId)
+    if (state) {
+      const url = buildUrlForState(item, state)
+      openPage(item.openMethod, url, item.title)
+    }
+    return
+  }
+
   switch (key) {
     case 'newWindows':
-      window.open(jumpUrl)
+      window.open(resolveJumpUrl(item, group))
       break
     case 'openWanUrl':
-      if (currentRightSelectItem.value)
-        openPage(currentRightSelectItem.value?.openMethod, currentRightSelectItem.value?.url, currentRightSelectItem.value?.title)
-      break
-    case 'openLanUrl':
-      if (currentRightSelectItem.value && currentRightSelectItem.value.lanUrl)
-        openPage(currentRightSelectItem.value?.openMethod, currentRightSelectItem.value.lanUrl, currentRightSelectItem.value?.title)
+      openPage(item.openMethod, item.url, item.title)
       break
     case 'edit':
-      // 这里有个奇怪的问题，如果不使用{...}的方式 父组件的值会同步修改 标记一下
-      handleEditItem({ ...currentRightSelectItem.value } as Panel.ItemInfo)
+      handleEditItem({ ...item })
       break
     case 'delete':
       dialog.warning({
         title: t('common.warning'),
-        content: t('common.deleteConfirmByName', { name: currentRightSelectItem.value?.title }),
+        content: t('common.deleteConfirmByName', { name: item.title }),
         positiveText: t('common.confirm'),
         negativeText: t('common.cancel'),
         onPositiveClick: () => {
-          deletes([currentRightSelectItem.value?.id as number]).then(({ code, msg }) => {
+          deletes([item.id as number]).then(({ code, msg }) => {
             if (code === 0) {
               ms.success(t('common.deleteSuccess'))
               getList()
@@ -159,11 +188,12 @@ function handleRightMenuSelect(key: string | number) {
 }
 
 function handleContextMenu(e: MouseEvent, itemGroupIndex: number, item: Panel.ItemInfo) {
-  if (items.value[itemGroupIndex] && items.value[itemGroupIndex].sortStatus)
+  if (globalSortMode.value || (items.value[itemGroupIndex] && items.value[itemGroupIndex].sortStatus))
     return
 
   e.preventDefault()
   currentRightSelectItem.value = item
+  currentRightSelectGroup.value = items.value[itemGroupIndex] || null
   dropdownShow.value = false
   nextTick().then(() => {
     dropdownShow.value = true
@@ -173,7 +203,6 @@ function handleContextMenu(e: MouseEvent, itemGroupIndex: number, item: Panel.It
 }
 
 function onClickoutside() {
-  // message.info('clickoutside')
   dropdownShow.value = false
 }
 
@@ -181,65 +210,60 @@ function handleEditSuccess(item: Panel.ItemInfo) {
   getList()
 }
 
-function handleChangeNetwork(mode: PanelStateNetworkModeEnum) {
-  panelState.setNetworkMode(mode)
-  if (mode === PanelStateNetworkModeEnum.lan)
-    ms.success(t('panelHome.changeToLanModelSuccess'))
-
-  else
-    ms.success(t('panelHome.changeToWanModelSuccess'))
-}
-
-// 结束拖拽
-// function handleEndDrag(event: any, itemIconGroup: Panel.ItemIconGroup) {
-//   // console.log(event)
-//   // console.log(items.value)
-// }
-
-function handleSaveSort(itemGroup: ItemGroup) {
-  const saveItems: Common.SortItemRequest[] = []
-  if (itemGroup.items) {
-    for (let i = 0; i < itemGroup.items.length; i++) {
-      const element = itemGroup.items[i]
+function handleSaveSort() {
+  const saveItems: Panel.ItemIconSortItem[] = []
+  for (const group of items.value) {
+    if (!group.items || !group.id)
+      continue
+    for (let i = 0; i < group.items.length; i++) {
+      const element = group.items[i]
+      element.itemIconGroupId = group.id
       saveItems.push({
         id: element.id as number,
         sort: i + 1,
+        itemIconGroupId: group.id,
       })
     }
-
-    saveSort({ itemIconGroupId: itemGroup.id as number, sortItems: saveItems }).then(({ code, msg }) => {
-      if (code === 0) {
-        ms.success(t('common.saveSuccess'))
-        itemGroup.sortStatus = false
-      }
-      else {
-        ms.error(`${t('common.saveFail')}:${msg}`)
-      }
-    })
   }
+
+  saveSort({ sortItems: saveItems }).then(({ code, msg }) => {
+    if (code === 0) {
+      ms.success(t('common.saveSuccess'))
+      setGlobalSortMode(false)
+    }
+    else {
+      ms.error(`${t('common.saveFail')}:${msg}`)
+    }
+  })
 }
 
 function getDropdownMenuOptions() {
-  const dropdownMenuOptions = [
+  const dropdownMenuOptions: { label: string; key: string }[] = [
     {
       label: t('iconItem.newWindowOpen'),
       key: 'newWindows',
     },
-
   ]
 
-  if (currentRightSelectItem.value?.lanUrl && panelState.networkMode === PanelStateNetworkModeEnum.wan) {
-    dropdownMenuOptions.push({
-      label: t('panelHome.openLanUrl'),
-      key: 'openLanUrl',
-    })
-  }
-
-  if (currentRightSelectItem.value?.lanUrl && panelState.networkMode === PanelStateNetworkModeEnum.lan) {
-    dropdownMenuOptions.push({
-      label: t('panelHome.openWanUrl'),
-      key: 'openWanUrl',
-    })
+  const group = currentRightSelectGroup.value
+  const item = currentRightSelectItem.value
+  if (group && item) {
+    const cfg = ensureNetworkConfig(group)
+    const active = getActiveNetworkState(group)
+    for (const state of cfg.networkStates) {
+      if (state.id === active?.id)
+        continue
+      dropdownMenuOptions.push({
+        label: t('panelHome.openWithState', { name: state.name }),
+        key: `openState:${state.id}`,
+      })
+    }
+    if (active?.type !== 'wan') {
+      dropdownMenuOptions.push({
+        label: t('panelHome.openPublicUrl'),
+        key: 'openWanUrl',
+      })
+    }
   }
 
   if (authStore.visitMode === VisitMode.VISIT_MODE_LOGIN) {
@@ -282,7 +306,7 @@ function itemFrontEndSearch(keyword?: string) {
         )
       })
       if (element && element.length > 0)
-        filteredData.value.push({ items: element, hoverStatus: false })
+        filteredData.value.push({ ...items.value[i], items: element, hoverStatus: false })
     }
     filterItems.value = filteredData.value
   }
@@ -296,16 +320,20 @@ function handleSetHoverStatus(groupIndex: number, hoverStatus: boolean) {
     items.value[groupIndex].hoverStatus = hoverStatus
 }
 
-function handleSetSortStatus(groupIndex: number, sortStatus: boolean) {
-  if (items.value[groupIndex])
-    items.value[groupIndex].sortStatus = sortStatus
+function setGlobalSortMode(enabled: boolean) {
+  globalSortMode.value = enabled
+  for (const g of items.value)
+    g.sortStatus = enabled
 
-  // 并未保存排序重新更新数据
-  if (!sortStatus) {
-    // 单独更新组
-    if (items.value[groupIndex] && items.value[groupIndex].id)
-      updateItemIconGroupByNet(groupIndex, items.value[groupIndex].id as number)
-  }
+  if (!enabled)
+    getList()
+}
+
+function handleToggleSortMode() {
+  if (globalSortMode.value)
+    setGlobalSortMode(false)
+  else
+    setGlobalSortMode(true)
 }
 
 function handleEditItem(item: Panel.ItemInfo) {
@@ -319,6 +347,44 @@ function handleAddItem(itemIconGroupId?: number) {
   editItemInfoShow.value = true
   if (itemIconGroupId)
     currentAddItenIconGroupId.value = itemIconGroupId
+}
+
+function getNetworkStateOptions(group: ItemGroup) {
+  const cfg = ensureNetworkConfig(group)
+  return cfg.networkStates.map(s => ({
+    label: s.name,
+    key: s.id,
+  }))
+}
+
+function handleSwitchNetworkState(group: ItemGroup, stateId: string | number) {
+  const cfg = ensureNetworkConfig(group)
+  const id = String(stateId)
+  const state = cfg.networkStates.find(s => s.id === id)
+  if (!state)
+    return
+  cfg.activeNetworkStateId = id
+  group.networkConfig = { ...cfg }
+
+  if (!group.id)
+    return
+
+  editGroup({
+    id: group.id,
+    title: group.title,
+    icon: group.icon,
+    sort: group.sort,
+    networkConfig: group.networkConfig,
+  }).then(({ code, msg }) => {
+    if (code === 0)
+      ms.success(t('panelHome.switchNetworkStateSuccess', { name: state.name }))
+    else
+      ms.error(`${t('common.saveFail')}:${msg}`)
+  })
+}
+
+function activeNetworkStateName(group: ItemGroup): string {
+  return getActiveNetworkState(group)?.name || ''
 }
 </script>
 
@@ -377,28 +443,65 @@ function handleAddItem(itemIconGroupId?: number) {
             />
           </div>
 
+          <!-- 全局排序工具栏 -->
+          <div
+            v-if="authStore.visitMode === VisitMode.VISIT_MODE_LOGIN && globalSortMode"
+            class="mt-[20px] flex items-center gap-2"
+          >
+            <NButton color="#2a2a2a6b" @click="handleSaveSort">
+              <template #icon>
+                <SvgIcon class="text-white font-xl" icon="material-symbols:save" />
+              </template>
+              <div>
+                {{ $t('panelHome.saveGlobalSort') }}
+              </div>
+            </NButton>
+            <NButton color="#2a2a2a6b" @click="setGlobalSortMode(false)">
+              {{ $t('common.cancel') }}
+            </NButton>
+          </div>
+
           <!-- 组纵向排列 -->
           <div
-            v-for="(itemGroup, itemGroupIndex) in filterItems" :key="itemGroupIndex"
+            v-for="(itemGroup, itemGroupIndex) in filterItems" :key="itemGroup.id || itemGroupIndex"
             class="item-list mt-[50px]"
-            :class="itemGroup.sortStatus ? 'shadow-2xl border shadow-[0_0_30px_10px_rgba(0,0,0,0.3)]  p-[10px] rounded-2xl' : ''"
+            :class="globalSortMode ? 'shadow-2xl border shadow-[0_0_30px_10px_rgba(0,0,0,0.3)]  p-[10px] rounded-2xl' : ''"
             @mouseenter="handleSetHoverStatus(itemGroupIndex, true)"
             @mouseleave="handleSetHoverStatus(itemGroupIndex, false)"
           >
             <!-- 分组标题 -->
-            <div class="text-white text-xl font-extrabold mb-[20px] ml-[10px] flex items-center">
+            <div class="text-white text-xl font-extrabold mb-[20px] ml-[10px] flex items-center flex-wrap gap-2">
               <span class="group-title text-shadow">
                 {{ itemGroup.title }}
               </span>
+
+              <!-- 分组级网络状态切换 -->
+              <NDropdown
+                trigger="click"
+                :options="getNetworkStateOptions(itemGroup)"
+                @select="(key) => handleSwitchNetworkState(itemGroup, key)"
+              >
+                <span
+                  class="text-sm font-normal px-2 py-0.5 rounded-full cursor-pointer bg-black/30 hover:bg-black/50 text-shadow"
+                  :title="t('panelHome.switchNetworkState')"
+                >
+                  {{ activeNetworkStateName(itemGroup) || t('panelHome.switchNetworkState') }}
+                </span>
+              </NDropdown>
+
               <div
                 v-if="authStore.visitMode === VisitMode.VISIT_MODE_LOGIN"
                 class="group-buttons ml-2 delay-100 transition-opacity flex"
-                :class="itemGroup.hoverStatus ? 'opacity-100' : 'opacity-0'"
+                :class="itemGroup.hoverStatus || globalSortMode ? 'opacity-100' : 'opacity-0'"
               >
                 <span class="mr-2 cursor-pointer" :title="t('common.add')" @click="handleAddItem(itemGroup.id)">
                   <SvgIcon class="text-white font-xl" icon="typcn:plus" />
                 </span>
-                <span class="mr-2 cursor-pointer " :title="t('common.sort')" @click="handleSetSortStatus(itemGroupIndex, !itemGroup.sortStatus)">
+                <span
+                  class="mr-2 cursor-pointer"
+                  :title="t('panelHome.globalSort')"
+                  @click="handleToggleSortMode"
+                >
                   <SvgIcon class="text-white font-xl" icon="ri:drag-drop-line" />
                 </span>
               </div>
@@ -408,14 +511,15 @@ function handleAddItem(itemIconGroupId?: number) {
             <div v-if="panelState.panelConfig.iconStyle === PanelPanelConfigStyleEnum.info">
               <div v-if="itemGroup.items">
                 <VueDraggable
-                  v-model="itemGroup.items" item-key="sort" :animation="300"
+                  v-model="itemGroup.items" item-key="id" :animation="300"
                   class="icon-info-box"
                   filter=".not-drag"
-                  :disabled="!itemGroup.sortStatus"
+                  :group="{ name: 'panel-icons', pull: true, put: true }"
+                  :disabled="!globalSortMode"
                 >
-                  <div v-for="item, index in itemGroup.items" :key="index" :title="item.description" @contextmenu="(e) => handleContextMenu(e, itemGroupIndex, item)">
+                  <div v-for="item in itemGroup.items" :key="item.id" :title="item.description" @contextmenu="(e) => handleContextMenu(e, itemGroupIndex, item)">
                     <AppIcon
-                      :class="itemGroup.sortStatus ? 'cursor-move' : 'cursor-pointer'"
+                      :class="globalSortMode ? 'cursor-move' : 'cursor-pointer'"
                       :item-info="item"
                       :icon-text-color="panelState.panelConfig.iconTextColor"
                       :icon-text-info-hide-description="panelState.panelConfig.iconTextInfoHideDescription || false"
@@ -427,7 +531,7 @@ function handleAddItem(itemIconGroupId?: number) {
 
                   <div v-if="itemGroup.items.length === 0" class="not-drag">
                     <AppIcon
-                      :class="itemGroup.sortStatus ? 'cursor-move' : 'cursor-pointer'"
+                      :class="globalSortMode ? 'cursor-move' : 'cursor-pointer'"
                       :item-info="{ icon: { itemType: 3, text: 'subway:add' }, title: t('common.add'), url: '', openMethod: 0 }"
                       :icon-text-color="panelState.panelConfig.iconTextColor"
                       :icon-text-info-hide-description="panelState.panelConfig.iconTextInfoHideDescription || false"
@@ -444,15 +548,15 @@ function handleAddItem(itemIconGroupId?: number) {
             <div v-if="panelState.panelConfig.iconStyle === PanelPanelConfigStyleEnum.icon">
               <div v-if="itemGroup.items">
                 <VueDraggable
-                  v-model="itemGroup.items" item-key="sort" :animation="300"
+                  v-model="itemGroup.items" item-key="id" :animation="300"
                   class="icon-small-box"
-
                   filter=".not-drag"
-                  :disabled="!itemGroup.sortStatus"
+                  :group="{ name: 'panel-icons', pull: true, put: true }"
+                  :disabled="!globalSortMode"
                 >
-                  <div v-for="item, index in itemGroup.items" :key="index" :title="item.description" @contextmenu="(e) => handleContextMenu(e, itemGroupIndex, item)">
+                  <div v-for="item in itemGroup.items" :key="item.id" :title="item.description" @contextmenu="(e) => handleContextMenu(e, itemGroupIndex, item)">
                     <AppIcon
-                      :class="itemGroup.sortStatus ? 'cursor-move' : 'cursor-pointer'"
+                      :class="globalSortMode ? 'cursor-move' : 'cursor-pointer'"
                       :item-info="item"
                       :icon-text-color="panelState.panelConfig.iconTextColor"
                       :icon-text-info-hide-description="!panelState.panelConfig.iconTextInfoHideDescription"
@@ -473,21 +577,7 @@ function handleAddItem(itemIconGroupId?: number) {
                       @click="handleAddItem(itemGroup.id)"
                     />
                   </div>
-                </vuedraggable>
-              </div>
-            </div>
-
-            <!-- 编辑栏 -->
-            <div v-if="itemGroup.sortStatus" class="flex mt-[10px]">
-              <div>
-                <NButton color="#2a2a2a6b" @click="handleSaveSort(itemGroup)">
-                  <template #icon>
-                    <SvgIcon class="text-white font-xl" icon="material-symbols:save" />
-                  </template>
-                  <div>
-                    {{ $t('common.saveSort') }}
-                  </div>
-                </NButton>
+                </VueDraggable>
               </div>
             </div>
           </div>
@@ -505,25 +595,6 @@ function handleAddItem(itemIconGroupId?: number) {
     <!-- 悬浮按钮 -->
     <div class="fixed-element shadow-[0_0_10px_2px_rgba(0,0,0,0.2)]">
       <NButtonGroup vertical>
-        <!-- 网络模式切换按钮组 -->
-        <NButton
-          v-if="panelState.networkMode === PanelStateNetworkModeEnum.lan && panelState.panelConfig.netModeChangeButtonShow" color="#2a2a2a6b"
-          :title="t('panelHome.changeToWanModel')" @click="handleChangeNetwork(PanelStateNetworkModeEnum.wan)"
-        >
-          <template #icon>
-            <SvgIcon class="text-white font-xl" icon="material-symbols:lan-outline-rounded" />
-          </template>
-        </NButton>
-
-        <NButton
-          v-if="panelState.networkMode === PanelStateNetworkModeEnum.wan && panelState.panelConfig.netModeChangeButtonShow" color="#2a2a2a6b"
-          :title="t('panelHome.changeToLanModel')" @click="handleChangeNetwork(PanelStateNetworkModeEnum.lan)"
-        >
-          <template #icon>
-            <SvgIcon class="text-white font-xl" icon="mdi:wan" />
-          </template>
-        </NButton>
-
         <NButton v-if="authStore.visitMode === VisitMode.VISIT_MODE_LOGIN" color="#2a2a2a6b" @click="settingModalShow = !settingModalShow">
           <template #icon>
             <SvgIcon class="text-white font-xl" icon="majesticons-applications" />
@@ -538,7 +609,6 @@ function handleAddItem(itemIconGroupId?: number) {
       </NButtonGroup>
 
       <AppStarter v-model:visible="settingModalShow" />
-      <!-- <Setting v-model:visible="settingModalShow" /> -->
     </div>
 
     <NBackTop
@@ -614,7 +684,6 @@ html {
   width: 100%;
   height: 100%;
   overflow: hidden;
-  /* background: url(@/assets/start_sky.jpg) no-repeat; */
 
   transform: scale(1.05);
 }
@@ -629,11 +698,8 @@ html {
 
 .fixed-element {
   position: fixed;
-  /* 将元素固定在屏幕上 */
   right: 10px;
-  /* 距离屏幕顶部的距离 */
   bottom: 50px;
-  /* 距离屏幕左侧的距离 */
 }
 
 .icon-info-box {

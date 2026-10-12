@@ -101,7 +101,18 @@
     "itemGroupManage": {
       "appName": "Group Management",
       "deleteWarnText": "Are you sure you want to delete this group [{name}]? The application icons in this group will be lost after deletion.",
-      "groupName": "Group name"
+      "groupName": "Group name",
+      "networkStates": "Network states",
+      "networkStateName": "State name",
+      "networkStateHost": "IP / Host",
+      "networkStateHostPlaceholder": "LAN or mesh IP; leave empty for public",
+      "networkStateType": "Type",
+      "addNetworkState": "Add network state",
+      "deleteNetworkState": "Delete",
+      "typeWan": "Public",
+      "typeLan": "LAN",
+      "typeCustom": "Custom",
+      "activeNetworkState": "Active network state"
     },
     "uploadsFileManager": {
       "alertText": "Here you can manage wallpapers and icons you have uploaded.",
@@ -233,7 +244,9 @@
     "onlineIconLibrary": "Online icon library",
     "openMethod": "Open method",
     "selectUpload": "Local upload",
-    "url": "URL"
+    "url": "Public URL",
+    "port": "Port",
+    "portPlaceholder": "e.g. 8080, used with group network state IP"
   },
   "login": {
     "loginButton": "Login",
@@ -248,7 +261,13 @@
     "changeToWanModelSuccess": "Switched to WAN mode (mode status saved locally)",
     "goToLogin": "Go to login",
     "openLanUrl": "Open LAN URL",
-    "openWanUrl": "Open WAN URL"
+    "openWanUrl": "Open WAN URL",
+    "switchNetworkState": "Switch network state",
+    "switchNetworkStateSuccess": "Switched to: {name}",
+    "openWithState": "Open with \"{name}\"",
+    "openPublicUrl": "Open public URL",
+    "globalSort": "Global sort",
+    "saveGlobalSort": "Save sort"
   },
   "settingUserInfo": {
     "confirmLogoutText": "Are you sure you want to logout?",

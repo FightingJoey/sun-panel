@@ -50,6 +50,7 @@
     "autoprefixer": "^10.4.13",
     "axios": "^1.3.4",
     "crypto-js": "^4.1.1",
+    "esbuild": "0.18.20",
     "eslint": "^8.35.0",
     "less": "^4.1.3",
     "lint-staged": "^13.1.2",
@@ -67,6 +68,12 @@
   "lint-staged": {
     "*.{ts,tsx,vue}": [
       "pnpm lint:fix"
+    ]
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "vue-demi"
     ]
   }
 }

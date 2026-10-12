@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, defineEmits, defineProps, ref, watch } from 'vue'
 import type { FormInst, FormRules } from 'naive-ui'
-import { NButton, NForm, NFormItem, NGrid, NGridItem, NInput, NInputGroup, NModal, NSelect, useMessage } from 'naive-ui'
+import { NButton, NForm, NFormItem, NGrid, NGridItem, NInput, NInputGroup, NInputNumber, NModal, NSelect, useMessage } from 'naive-ui'
 import IconEditor from './IconEditor.vue'
 import { edit, getSiteFavicon } from '@/api/panel/itemIcon'
 import { getList as getGroupList } from '@/api/panel/itemIconGroup'
@@ -27,7 +27,7 @@ const restoreDefault: Panel.Info = {
   icon: null,
   title: '',
   url: '',
-  lanUrl: '',
+  port: null,
   description: '',
   openMethod: 2,
 }
@@ -46,17 +46,6 @@ const rules: FormRules = {
     trigger: 'blur',
     message: t('form.required'),
   },
-  url: {
-    required: true,
-    trigger: 'blur',
-    type: 'string',
-    message: t('form.required'),
-  },
-  // itemIconGroupId: {
-  //   required: true,
-  //   trigger: ['blur', 'change'],
-  //   message: t('form.required'),
-  // },
 }
 
 const options = [
@@ -86,7 +75,12 @@ const show = computed({
 async function editApi() {
   submitLoading.value = true
   try {
-    const { code, data, msg } = await edit<Panel.ItemInfo>(model.value)
+    const payload: Panel.ItemInfo = {
+      ...model.value,
+      port: model.value.port || 0,
+      lanUrl: model.value.lanUrl || '',
+    }
+    const { code, data, msg } = await edit<Panel.ItemInfo>(payload)
     if (code === 0) {
       show.value = false
       model.value = { ...restoreDefault }
@@ -136,6 +130,8 @@ watch(() => props.visible, (newValue) => {
     model.value = props.itemInfo ? { ...props.itemInfo } : { ...restoreDefault }
     if (props.itemGroupId)
       model.value.itemIconGroupId = props.itemGroupId
+    if (!model.value.port)
+      model.value.port = null
   }
 
   getGroupListOptions()
@@ -187,7 +183,6 @@ function getGroupListOptions() {
           <IconEditor v-model:item-icon="model.icon" />
         </NFormItem>
         <NFormItem path="url" :label="$t('iconItem.url')">
-          <!-- <NSelect :style="{ width: '100px' }" :options="urlProtocolOptions" /> -->
           <NInputGroup>
             <NInput v-model:value="model.url" type="text" :maxlength="1000" placeholder="http(s)://" />
             <NButton :disabled="!model.url" :loading="getIconLoading[0]" @click="getIconByUrl(model.url, 0)">
@@ -195,13 +190,15 @@ function getGroupListOptions() {
             </NButton>
           </NInputGroup>
         </NFormItem>
-        <NFormItem path="lanUrl" :label="$t('iconItem.lanUrl')">
-          <NInputGroup>
-            <NInput v-model:value="model.lanUrl" type="text" :maxlength="1000" :placeholder="$t('iconItem.lanUrlInputPlaceholder')" />
-            <NButton :disabled="!model.lanUrl" :loading="getIconLoading[1]" @click="getIconByUrl(model.lanUrl || '', 1)">
-              {{ $t('iconItem.getIcon') }}
-            </NButton>
-          </NInputGroup>
+        <NFormItem path="port" :label="$t('iconItem.port')">
+          <NInputNumber
+            v-model:value="model.port"
+            :min="1"
+            :max="65535"
+            :show-button="false"
+            class="w-full"
+            :placeholder="$t('iconItem.portPlaceholder')"
+          />
         </NFormItem>
         <NFormItem path="description" :label="$t('common.description')">
           <NInput v-model:value="model.description" type="text" show-count :maxlength="100" />

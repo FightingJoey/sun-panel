@@ -49,7 +49,7 @@ func (a *ItemIcon) Edit(c *gin.Context) {
 
 	if req.ID != 0 {
 		// 修改
-		updateField := []string{"IconJson", "Icon", "Title", "Url", "LanUrl", "Description", "OpenMethod", "GroupId", "UserId", "ItemIconGroupId"}
+		updateField := []string{"IconJson", "Icon", "Title", "Url", "LanUrl", "Port", "Description", "OpenMethod", "GroupId", "UserId", "ItemIconGroupId"}
 		if req.Sort != 0 {
 			updateField = append(updateField, "Sort")
 		}
@@ -175,15 +175,23 @@ func (a *ItemIcon) SaveSort(c *gin.Context) {
 	userInfo, _ := base.GetCurrentUserInfo(c)
 
 	transactionErr := global.Db.Transaction(func(tx *gorm.DB) error {
-		// 在事务中执行一些 db 操作（从这里开始，您应该使用 'tx' 而不是 'db'）
+		// Supports cross-group moves: each sort item may carry its own itemIconGroupId.
 		for _, v := range req.SortItems {
-			if err := tx.Model(&models.ItemIcon{}).Where("user_id=? AND id=? AND item_icon_group_id=?", userInfo.ID, v.Id, req.ItemIconGroupId).Update("sort", v.Sort).Error; err != nil {
-				// 返回任何错误都会回滚事务
+			groupId := v.ItemIconGroupId
+			if groupId == 0 {
+				groupId = req.ItemIconGroupId
+			}
+			updates := map[string]interface{}{
+				"sort": v.Sort,
+			}
+			if groupId != 0 {
+				updates["item_icon_group_id"] = groupId
+			}
+			if err := tx.Model(&models.ItemIcon{}).Where("user_id=? AND id=?", userInfo.ID, v.Id).Updates(updates).Error; err != nil {
 				return err
 			}
 		}
 
-		// 返回 nil 提交事务
 		return nil
 	})
 

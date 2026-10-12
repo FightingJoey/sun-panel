@@ -2,7 +2,7 @@
 FROM node AS web_image
 
 # 华为源
-# RUN npm config set registry https://repo.huaweicloud.com/repository/npm/
+RUN npm config set registry https://repo.huaweicloud.com/repository/npm/
 
 RUN npm install pnpm -g
 
@@ -29,8 +29,8 @@ WORKDIR /build
 COPY ./service .
 
 # 中国国内源
-# RUN sed -i "s@dl-cdn.alpinelinux.org@mirrors.aliyun.com@g" /etc/apk/repositories \
-#     && go env -w GOPROXY=https://goproxy.cn,direct
+RUN sed -i "s@dl-cdn.alpinelinux.org@mirrors.aliyun.com@g" /etc/apk/repositories \
+    && go env -w GOPROXY=https://goproxy.cn,direct
 
 RUN apk add --no-cache bash curl gcc git musl-dev
 
@@ -53,7 +53,7 @@ COPY --from=web_image /build/dist /app/web
 COPY --from=server_image /build/sun-panel /app/sun-panel
 
 # 中国国内源
-# RUN sed -i "s@dl-cdn.alpinelinux.org@mirrors.aliyun.com@g" /etc/apk/repositories
+RUN sed -i "s@dl-cdn.alpinelinux.org@mirrors.aliyun.com@g" /etc/apk/repositories
 
 EXPOSE 3002
 

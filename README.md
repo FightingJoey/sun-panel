@@ -1,5 +1,5 @@
-[[ 简体中文 ]](https://doc.sun-panel.top/zh_cn/) |
-[[ English ]](https://doc.sun-panel.top/)
+[[ 简体中文 ]](https://sun-panel-doc.enianteam.com/zh_cn/introduce/project.html) |
+[[ English ]](https://sun-panel-doc.enianteam.com/introduce/project.html)
 
 <div align=center>
 
@@ -21,57 +21,57 @@
 [[ Document ]](https://sun-panel-doc.enianteam.com) |
 [[ Demo ]](http://sunpaneldemo.enianteam.com) 
 
-A server, NAS navigation panel, Homepage, Browser homepage.
+Server, NAS navigation panel, Homepage, Browser homepage.
 <br>
 一个服务器、NAS导航面板、Homepage、浏览器首页。
 
 </div>
 
+<!-- <img src="./doc/images/logo.png" align="left" width="180px" height="180px"/>
+<img align="left" width="0" height="192px" hspace="10"/>
 
-![](./doc/images/main-dark.png)
-
-> [!IMPORTANT]
-> In order to maintain the livelihood, the author added some [`PRO`] (https://pro.sun-panel.top) function, so the project temporarily entered a closed source state.; At present, the latest version of the open source is `v1.3.0`, [Please see the latest version of closed source](https://github.com/hslr-s/sun-panel/releases).; When the modular technology is developed, the separation of the PRO and the programs will be opened again, and the closed source will have no effect on ordinary users.; Let's look forward to open source again, and at the same time, we are welcome to supervise and review the security of the program.
-> 
-> 作者为了维持生计，增加了一些 [`PRO`](https://pro.sun-panel.top) 功能，所以项目暂时进入闭源状态。目前开源最新版本为`v1.3.0`，[闭源最新版本请查看](https://github.com/hslr-s/sun-panel/releases)。待开发出模块化技术，然后对PRO和主程序进行分离会再次开源，闭源对普通用户没有任何影响。我们一起期待再次开源吧，同时也欢迎各位大佬对程序的安全性进行监督和审查。
-
-## 😎 Features
-
-- 🍉 Clean interface, powerful functionality, low resource consumption
-- 🍊 Easy to use, visual operation, zero-code usage
-- 🍠 One-click switch between internal and external network modes
-- 🍵 Supports Docker deployment (compatible with Arm systems)
-- 🎪 Supports multi-account isolation
-- 🎏 Supports viewing system status
-- 🫙 Supports custom JS, CSS
-- 🍻 Simple usage without the need to connect to an external database
-- 🍾 Rich icon styles for free combination, supports [Iconify icon library](https://icon-sets.iconify.design/)
-- 🚁 Supports opening small windows in the webpage (some third-party websites may block this feature)
-
-## 🖼️ Preview Screenshots
-
-**Various styles, freely combined**
-
-![](./doc/images/icon-small-new.png)
-![](./doc/images/transparent-info.png)
-![](./doc/images/transparent-small.png)
-![](./doc/images/solid-color-info.png)
-![](./doc/images/full-color-small.jpg)
-
-**Built-in small windows**
-
-![](./doc/images/window-ssh.png)
-![](./doc/images/window-xunlei.png)
+# Sun-Panel
+Server, NAS navigation panel, Homepage, Browser homepage.
+<br>
+一个服务器、NAS导航面板、Homepage、浏览器首页。 -->
 
 
 
-## 🐳 Deployment tutorial
-[Deployment Tutorial](https://sun-panel-doc.enianteam.com/usage/quick_deploy.html)
 
-## 🍵 Donate
+![](./doc/images/icon-info-new.png)
 
-> Open-source development is not easy. If you feel that my project has helped you, you are welcome to [donate](./doc/donate.md) or buy me a cup of tea☕ (please leave your nickname or name in the note if possible). Your support is my motivation, thank you.
+## 😎 特点
 
+- 简洁
+- 局域网内外网链接切换
+- docker部署,对arm系统支持
+- 上手简单，免修改代码
+- 无需连接外部数据库
+- 丰富图标自由搭配（文字图标+svg图标+内置三方图标库）
+- 支持网页内置小窗口打开（部分网站屏蔽此功能）
+- 占用资源小
+
+## 🧊 最新完整文档（DOC）
+
+[最新完整文档（DOC）](https://sun-panel-doc.enianteam.com/)
+
+
+## 🎨 演示（demo）
+
+[查看演示站](https://sun-panel-doc.enianteam.com/introduce/demo_site.html)
+
+## 🐳 交流群&社区
+开发者：**[红烧猎人](https://blog.enianteam.com/u/sun/content/11)**
+
+QQ交流群，进不去可以点上方连接联系作者
+
+<img src="./doc/images/qq_group_qr2.png"  height="350" />
+
+Github社区板块：https://github.com/hslr-s/sun-panel/discussions
+
+## 🍵 打赏
+
+> 开源开发不易，如果觉得我的项目有帮到你，欢迎给我[打赏](./doc/donate.md)或者请我喝个奶茶☕（如果可以备注下您的昵称或者名字），你的支持就是我的动力，谢谢。
 
 <a href="https://www.paypal.me/hslrs">
 <img height="60" src="./doc/images/donate/paypal.png" target="_blank"></img> 
@@ -82,23 +82,117 @@ A server, NAS navigation panel, Homepage, Browser homepage.
 | ------------ | ------------ |
 | <img height="300" src="./doc/images/donate/weixin.png"/> |  <img height="300" src="./doc/images/donate/alipay.png" /> |
 
-## 🏖️ Communication group & community
+## 🫓 TODO
 
-Author：**[红烧猎人](https://blog.enianteam.com/u/sun/content/11)**
+- [x] 分组，拖拽排序
+- [x] 导入导出功能
+- [x] 增加访客账号
+- [x] 帐号解除邮箱限制
+- [x] 对上传的文件管理（针对账户增强重复利用，节省空间）
+- [x] 服务器监控
+- [x] 多国语言支持
+- [ ] 用户自定义搜索框搜索引擎
+- [ ] 搜索框样式自定义（背景颜色，文字颜色）
+- [ ] docker管理器
+- [ ] 计划任务
 
-[Github Discussions](https://github.com/hslr-s/sun-panel/discussions)
 
-QQ交流群，进不去可以点上方连接联系作者
 
-<img src="./doc/images/qq_group_qr2.png"  height="350" />
+## 🖼️ 预览截图
 
-## ❤️ Thanks
+**各种风格，自由搭配**
+
+![](./doc/images/icon-small-new.png)
+![](./doc/images/transparent-info.png)
+![](./doc/images/transparent-small.png)
+![](./doc/images/solid-color-info.png)
+![](./doc/images/full-color-small.jpg)
+
+**内置小窗口**
+
+![](./doc/images/window-ssh.png)
+![](./doc/images/window-xunlei.png)
+
+## 🍜 使用运行教程
+
+<div id="default-username"></div>
+
+### 默认账号密码
+账号：admin@sun.cc
+
+密码：12345678
+
+### 命令参数
+|参数|说明|
+|---|---|
+|-h|查看命令说明|
+|-config|生成配置文件（conf/conf.ini）|
+|-password-reset|重置第一个用户的密码|
+
+### 二进制文件运行
+
+去 [Releases](https://github.com/hslr-s/sun-panel/releases) 下载二进制文件
+
+执行示例
+
+```sh
+./sun-panel
+```
+
+#### 重置密码
+
+执行示例
+
+```sh
+./sun-panel -password-reset
+```
+输出
+```
+密码已经重置成功，以下是账号信息
+用户名  xxx@qq.com
+密码  12345678
+```
+
+### docker 运行
+
+目录挂载 `-v`，根据自己的需求选择：
+|容器目录|说明|
+|---|---|
+|/app/conf|配置文件|
+|/app/uploads|上传的文件|
+|/app/database|数据库文件|
+|/app/runtime|运行日志(不推荐挂载)|
+
+1. 拉取镜像
+```sh
+docker pull hslr/sun-panel
+```
+
+2. 直接下载运行
+```sh
+docker run -d --restart=always -p 3002:3002 \
+-v ~/docker_data/sun-panel/conf:/app/conf \
+-v ~/docker_data/sun-panel/uploads:/app/uploads \
+-v ~/docker_data/sun-panel/database:/app/database \
+--name sun-panel \
+hslr/sun-panel
+```
+
+
+### 自编译运行
+
+[请参考完整文档](https://sun-panel-doc.enianteam.com/zh_cn/usage/compile.html)
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=hslr-s/sun-panel&type=Date)](https://star-history.com/#hslr-s/sun-panel&Date)
+
+
+## ❤️ 感谢
 
 - [Roc](https://github.com/RocCheng)
 - [jackloves111](https://github.com/jackloves111)
 - [Rock.L](https://github.com/gitlyp)
 
-
----
-
-[![Star History Chart](https://api.star-history.com/svg?repos=hslr-s/sun-panel&type=Date)](https://star-history.com/#hslr-s/sun-panel&Date)
+## LICENSE
+[MIT](./LICENSE)

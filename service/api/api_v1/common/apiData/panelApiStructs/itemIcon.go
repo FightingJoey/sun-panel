@@ -1,7 +1,6 @@
 package panelApiStructs
 
 import (
-	"sun-panel/api/api_v1/common/apiData/commonApiStructs"
 	"sun-panel/models"
 )
 
@@ -10,9 +9,15 @@ type ItemIconEditRequest struct {
 	IconJson string
 }
 
+type ItemIconSaveSortItem struct {
+	Id              uint `json:"id"`
+	Sort            uint `json:"sort"`
+	ItemIconGroupId uint `json:"itemIconGroupId"`
+}
+
 type ItemIconSaveSortRequest struct {
-	SortItems       []commonApiStructs.SortRequestItem `json:"sortItems"`
-	ItemIconGroupId uint                               `json:"itemIconGroupId"`
+	SortItems       []ItemIconSaveSortItem `json:"sortItems"`
+	ItemIconGroupId uint                   `json:"itemIconGroupId"` // kept for backward compatibility; ignored when sortItems carry group ids
 }
 
 type ItemIconGetSiteFaviconReq struct {

@@ -47,6 +47,7 @@ async function importIcons(): Promise<string | null> {
       const createGroupResponse = await addGroup<Panel.ItemIconGroup>({
         title: element.title,
         sort: element.sort,
+        networkConfig: element.networkConfig,
       })
 
       if (createGroupResponse.code === 0) {
@@ -64,7 +65,8 @@ async function importIcons(): Promise<string | null> {
               sort: iconElement.sort,
               icon: iconElement.icon,
               url: iconElement.url,
-              lanUrl: iconElement.lanUrl,
+              lanUrl: iconElement.lanUrl || '',
+              port: iconElement.port || 0,
               description: iconElement.description,
               openMethod: iconElement.openMethod,
               itemIconGroupId: groupId,
@@ -111,6 +113,7 @@ async function exportIcons(): Promise<IconGroup[]> {
         title: element.title as string,
         sort: element.sort as 0,
         children: [],
+        networkConfig: element.networkConfig,
       }
 
       const res = await getListByGroupId<Common.ListResponse<Panel.ItemInfo[]>>(element.id)
@@ -123,6 +126,7 @@ async function exportIcons(): Promise<IconGroup[]> {
             title: iconElement.title,
             url: iconElement.url,
             lanUrl: iconElement.lanUrl || '',
+            port: iconElement.port || 0,
             description: iconElement.description || '',
             openMethod: iconElement.openMethod || 1,
           })

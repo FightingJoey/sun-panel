@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import type { FormInst, FormRules } from 'naive-ui'
-import { NButton, NCard, NForm, NFormItem, NInput, useDialog, useMessage } from 'naive-ui'
+import type { FormInst, FormRules, SelectOption } from 'naive-ui'
+import { NButton, NCard, NForm, NFormItem, NInput, NSelect, useDialog, useMessage } from 'naive-ui'
 import { VueDraggable } from 'vue-draggable-plus'
 import { deletes, edit, getList, saveSort } from '@/api/panel/itemIconGroup'
 import { RoundCardModal, SvgIcon } from '@/components/common'
 import { t } from '@/locales'
+import { defaultNetworkConfig, genNetworkStateId } from '@/utils/network'
 
 interface EditModalArg {
   show: boolean
@@ -19,16 +20,17 @@ const ms = useMessage()
 const dialog = useDialog()
 const sortStatus = ref(false)
 
-const defaultMNodal = {
+const defaultMNodal: Panel.ItemIconGroup = {
   title: '',
   icon: 'material-symbols:folder-outline',
   sort: 9999,
+  networkConfig: defaultNetworkConfig(),
 }
 
 const editModalArg = ref<EditModalArg>({
   show: false,
   editStatus: 1,
-  model: defaultMNodal,
+  model: { ...defaultMNodal, networkConfig: defaultNetworkConfig() },
   rules: {
     title: [
       {
@@ -42,14 +44,35 @@ const editModalArg = ref<EditModalArg>({
 
 const groups = ref<Panel.ItemIconGroup[]>([])
 
+const typeOptions: SelectOption[] = [
+  { label: t('apps.itemGroupManage.typeWan'), value: 'wan' },
+  { label: t('apps.itemGroupManage.typeLan'), value: 'lan' },
+  { label: t('apps.itemGroupManage.typeCustom'), value: 'custom' },
+]
+
+function ensureModelNetworkConfig() {
+  if (!editModalArg.value.model.networkConfig)
+    editModalArg.value.model.networkConfig = defaultNetworkConfig()
+  if (!editModalArg.value.model.networkConfig.networkStates)
+    editModalArg.value.model.networkConfig.networkStates = defaultNetworkConfig().networkStates
+}
+
 function handleAddGroup() {
-  editModalArg.value.show = !editModalArg.value.show
+  editModalArg.value.editStatus = 1
+  editModalArg.value.model = { ...defaultMNodal, networkConfig: defaultNetworkConfig() }
+  editModalArg.value.show = true
 }
 
 function handleEditGroup(groupInfo: Panel.ItemIconGroup) {
   editModalArg.value.show = true
-  editModalArg.value.model = groupInfo
+  editModalArg.value.model = {
+    ...groupInfo,
+    networkConfig: groupInfo.networkConfig
+      ? JSON.parse(JSON.stringify(groupInfo.networkConfig))
+      : defaultNetworkConfig(),
+  }
   editModalArg.value.editStatus = 2
+  ensureModelNetworkConfig()
 }
 
 function handleDragSort() {
@@ -96,16 +119,44 @@ function handleDelete(groupInfo: Panel.ItemIconGroup) {
   })
 }
 
+function handleAddNetworkState() {
+  ensureModelNetworkConfig()
+  const cfg = editModalArg.value.model.networkConfig!
+  cfg.networkStates.push({
+    id: genNetworkStateId(),
+    name: t('apps.itemGroupManage.typeCustom'),
+    type: 'custom',
+    host: '',
+  })
+}
+
+function handleRemoveNetworkState(index: number) {
+  ensureModelNetworkConfig()
+  const cfg = editModalArg.value.model.networkConfig!
+  if (cfg.networkStates.length <= 1) {
+    ms.warning(t('common.warning'))
+    return
+  }
+  const removed = cfg.networkStates.splice(index, 1)[0]
+  if (cfg.activeNetworkStateId === removed.id)
+    cfg.activeNetworkStateId = cfg.networkStates[0].id
+}
+
 function handleSaveGroup() {
   formRef.value?.validate((errors) => {
     if (!errors) {
+      ensureModelNetworkConfig()
+      const cfg = editModalArg.value.model.networkConfig!
+      if (!cfg.activeNetworkStateId || !cfg.networkStates.find(s => s.id === cfg.activeNetworkStateId))
+        cfg.activeNetworkStateId = cfg.networkStates[0]?.id || 'wan'
+
       edit(editModalArg.value.model).then(({ code, msg }) => {
         if (code !== 0)
           ms.error(msg)
 
         refreshList()
         editModalArg.value.show = false
-        editModalArg.value.model = { ...defaultMNodal }
+        editModalArg.value.model = { ...defaultMNodal, networkConfig: defaultNetworkConfig() }
       })
     }
     else { console.log(errors) }
@@ -114,8 +165,9 @@ function handleSaveGroup() {
 
 function refreshList() {
   getList<Common.ListResponse<Panel.ItemIconGroup[]>>().then(({ code, data }) => {
-    groups.value = data.list
-  })
+    if (code === 0 && data?.list)
+      groups.value = data.list
+  }).catch(() => {})
 }
 
 onMounted(() => {
@@ -152,7 +204,6 @@ onMounted(() => {
               <div class="flex items-center">
                 <span class="mr-[10px]">
                   <SvgIcon class="text-[20px]" icon="material-symbols:ad-group-outline-rounded" />
-                  <!-- <SvgIcon class="text-[20px]" :icon="item.icon" /> -->
                 </span>
                 <span>
                   {{ item.title }}
@@ -180,15 +231,60 @@ onMounted(() => {
       </VueDraggable>
     </div>
 
-    <RoundCardModal v-model:show="editModalArg.show" size="small" type="small" :title="editModalArg.editStatus === 1 ? '添加' : '编辑'" style="width: 400px;">
+    <RoundCardModal v-model:show="editModalArg.show" size="small" type="small" :title="editModalArg.editStatus === 1 ? '添加' : '编辑'" style="width: 520px;">
       <NForm ref="formRef" :model="editModalArg.model" :rules="editModalArg.rules">
         <NFormItem path="title" :label="$t('apps.itemGroupManage.groupName')">
           <NInput v-model:value="editModalArg.model.title" type="text" :maxlength="20" show-count />
         </NFormItem>
 
-        <!-- <NFormItem path="name" label="昵称">
-          <NInput v-model:value="editModalArg.model" type="text" placeholder="请输入昵称" />
-        </NFormItem> -->
+        <div class="mb-2 font-medium">
+          {{ $t('apps.itemGroupManage.networkStates') }}
+        </div>
+
+        <div
+          v-for="(state, sIndex) in editModalArg.model.networkConfig?.networkStates || []"
+          :key="state.id"
+          class="mb-3 p-3 rounded-lg bg-slate-100 dark:bg-zinc-800"
+        >
+          <div class="flex gap-2 mb-2">
+            <NInput
+              v-model:value="state.name"
+              :placeholder="$t('apps.itemGroupManage.networkStateName')"
+              class="flex-1"
+            />
+            <NSelect
+              v-model:value="state.type"
+              :options="typeOptions"
+              style="width: 110px"
+            />
+            <NButton
+              strong
+              secondary
+              type="error"
+              size="small"
+              :disabled="(editModalArg.model.networkConfig?.networkStates.length || 0) <= 1"
+              @click="handleRemoveNetworkState(sIndex)"
+            >
+              {{ $t('apps.itemGroupManage.deleteNetworkState') }}
+            </NButton>
+          </div>
+          <NInput
+            v-if="state.type !== 'wan'"
+            v-model:value="state.host"
+            :placeholder="$t('apps.itemGroupManage.networkStateHostPlaceholder')"
+          />
+        </div>
+
+        <NButton size="small" type="info" secondary class="mb-3" @click="handleAddNetworkState">
+          {{ $t('apps.itemGroupManage.addNetworkState') }}
+        </NButton>
+
+        <NFormItem :label="$t('apps.itemGroupManage.activeNetworkState')">
+          <NSelect
+            v-model:value="editModalArg.model.networkConfig!.activeNetworkStateId"
+            :options="(editModalArg.model.networkConfig?.networkStates || []).map(s => ({ label: s.name, value: s.id }))"
+          />
+        </NFormItem>
       </NForm>
       <template #footer>
         <NButton type="success" size="small" class="float-right" @click="handleSaveGroup">

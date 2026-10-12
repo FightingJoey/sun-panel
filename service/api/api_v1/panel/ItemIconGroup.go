@@ -7,6 +7,7 @@ import (
 	"sun-panel/api/api_v1/common/base"
 	"sun-panel/global"
 	"sun-panel/models"
+	"sun-panel/models/datatype"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
@@ -27,15 +28,22 @@ func (a *ItemIconGroup) Edit(c *gin.Context) {
 
 	req.UserId = userInfo.ID
 
+	if len(req.NetworkConfig.NetworkStates) == 0 {
+		req.NetworkConfig = datatype.DefaultNetworkConfig()
+	}
+	if req.NetworkConfig.ActiveNetworkStateId == "" && len(req.NetworkConfig.NetworkStates) > 0 {
+		req.NetworkConfig.ActiveNetworkStateId = req.NetworkConfig.NetworkStates[0].Id
+	}
+
 	if req.ID != 0 {
 		// 修改
-		updateField := []string{"IconJson", "Icon", "Title", "Url", "LanUrl", "Description", "OpenMethod", "GroupId", "UserId"}
+		updateField := []string{"Icon", "Title", "Description", "UserId", "NetworkConfig"}
 		if req.Sort != 0 {
 			updateField = append(updateField, "Sort")
 		}
 		global.Db.Model(&models.ItemIconGroup{}).
 			Select(updateField).
-			Where("id=?", req.ID).Updates(&req)
+			Where("id=? AND user_id=?", req.ID, userInfo.ID).Updates(&req)
 	} else {
 		// 创建
 		global.Db.Create(&req)
@@ -58,9 +66,10 @@ func (a *ItemIconGroup) GetList(c *gin.Context) {
 		// 判断分组是否为空，为空将自动创建默认分组
 		if len(groups) == 0 {
 			defaultGroup := models.ItemIconGroup{
-				Title:  "APP",
-				UserId: userInfo.ID,
-				Icon:   "material-symbols:ad-group-outline",
+				Title:         "APP",
+				UserId:        userInfo.ID,
+				Icon:          "material-symbols:ad-group-outline",
+				NetworkConfig: datatype.DefaultNetworkConfig(),
 			}
 			if err := tx.Create(&defaultGroup).Error; err != nil {
 				apiReturn.ErrorDatabase(c, err.Error())
@@ -74,6 +83,15 @@ func (a *ItemIconGroup) GetList(c *gin.Context) {
 			}
 
 			groups = append(groups, defaultGroup)
+		}
+
+		// Ensure existing groups without network config get defaults and persist once
+		for i := range groups {
+			if len(groups[i].NetworkConfig.NetworkStates) == 0 {
+				groups[i].NetworkConfig = datatype.DefaultNetworkConfig()
+				_ = tx.Model(&models.ItemIconGroup{}).Where("id=?", groups[i].ID).
+					Update("network_config", groups[i].NetworkConfig).Error
+			}
 		}
 
 		// 返回 nil 提交事务

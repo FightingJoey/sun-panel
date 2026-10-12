@@ -35,7 +35,8 @@ export interface Icon {
   sort: number
   icon: Panel.ItemIcon | null
   url: string
-  lanUrl: string
+  lanUrl?: string
+  port?: number
   description: string
   openMethod: number
 }
@@ -45,6 +46,7 @@ export interface IconGroup {
   title: string
   sort: number
   children: Icon[]
+  networkConfig?: Panel.NetworkConfig
 }
 
 interface ExportJsonResult {
