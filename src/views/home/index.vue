@@ -85,13 +85,16 @@ function resolveJumpUrl(item: Panel.ItemInfo, group?: ItemGroup | null): string 
   return buildJumpUrl(item, g)
 }
 
-function handleItemClick(itemGroupIndex: number, item: Panel.ItemInfo) {
-  if (globalSortMode.value || (items.value[itemGroupIndex] && items.value[itemGroupIndex].sortStatus)) {
+function handleItemClick(itemGroup: ItemGroup, item: Panel.ItemInfo) {
+  if (globalSortMode.value || itemGroup.sortStatus) {
     handleEditItem(item)
     return
   }
 
-  const group = items.value[itemGroupIndex] || findGroupForItem(item)
+  // Use the group object from the rendered list (filterItems) so the active
+  // network state matches what the user just switched — index into `items`
+  // can diverge after search filtering.
+  const group = itemGroup || findGroupForItem(item)
   const jumpUrl = resolveJumpUrl(item, group)
   openPage(item.openMethod, jumpUrl, item.title)
 }
@@ -187,13 +190,13 @@ function handleRightMenuSelect(key: string | number) {
   }
 }
 
-function handleContextMenu(e: MouseEvent, itemGroupIndex: number, item: Panel.ItemInfo) {
-  if (globalSortMode.value || (items.value[itemGroupIndex] && items.value[itemGroupIndex].sortStatus))
+function handleContextMenu(e: MouseEvent, itemGroup: ItemGroup, item: Panel.ItemInfo) {
+  if (globalSortMode.value || itemGroup.sortStatus)
     return
 
   e.preventDefault()
   currentRightSelectItem.value = item
-  currentRightSelectGroup.value = items.value[itemGroupIndex] || null
+  currentRightSelectGroup.value = itemGroup || null
   dropdownShow.value = false
   nextTick().then(() => {
     dropdownShow.value = true
@@ -517,7 +520,7 @@ function activeNetworkStateName(group: ItemGroup): string {
                   :group="{ name: 'panel-icons', pull: true, put: true }"
                   :disabled="!globalSortMode"
                 >
-                  <div v-for="item in itemGroup.items" :key="item.id" :title="item.description" @contextmenu="(e) => handleContextMenu(e, itemGroupIndex, item)">
+                  <div v-for="item in itemGroup.items" :key="item.id" :title="item.description" @contextmenu="(e) => handleContextMenu(e, itemGroup, item)">
                     <AppIcon
                       :class="globalSortMode ? 'cursor-move' : 'cursor-pointer'"
                       :item-info="item"
@@ -525,7 +528,7 @@ function activeNetworkStateName(group: ItemGroup): string {
                       :icon-text-info-hide-description="panelState.panelConfig.iconTextInfoHideDescription || false"
                       :icon-text-icon-hide-title="panelState.panelConfig.iconTextIconHideTitle || false"
                       :style="0"
-                      @click="handleItemClick(itemGroupIndex, item)"
+                      @click="handleItemClick(itemGroup, item)"
                     />
                   </div>
 
@@ -554,7 +557,7 @@ function activeNetworkStateName(group: ItemGroup): string {
                   :group="{ name: 'panel-icons', pull: true, put: true }"
                   :disabled="!globalSortMode"
                 >
-                  <div v-for="item in itemGroup.items" :key="item.id" :title="item.description" @contextmenu="(e) => handleContextMenu(e, itemGroupIndex, item)">
+                  <div v-for="item in itemGroup.items" :key="item.id" :title="item.description" @contextmenu="(e) => handleContextMenu(e, itemGroup, item)">
                     <AppIcon
                       :class="globalSortMode ? 'cursor-move' : 'cursor-pointer'"
                       :item-info="item"
@@ -562,7 +565,7 @@ function activeNetworkStateName(group: ItemGroup): string {
                       :icon-text-info-hide-description="!panelState.panelConfig.iconTextInfoHideDescription"
                       :icon-text-icon-hide-title="panelState.panelConfig.iconTextIconHideTitle || false"
                       :style="1"
-                      @click="handleItemClick(itemGroupIndex, item)"
+                      @click="handleItemClick(itemGroup, item)"
                     />
                   </div>
 
